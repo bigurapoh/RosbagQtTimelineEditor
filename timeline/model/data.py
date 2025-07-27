@@ -101,3 +101,5 @@ class TimlineMngModel():
 
     def add_records():
         pass
+
+    #!--- 11.実際のtimecodeの返却とframeによるtimecodeの返却どちらにも対応できるようにする(modelはviewからも定義されるのでviewもちゃんと確認)
