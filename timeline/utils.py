@@ -1,4 +1,4 @@
-def frames_to_timecode(frame: int, fps: int) -> str:
+def frames_to_timecode(frame: int, fps: int = 24) -> str:
     """
     Convert a frame number to a timecode string in HH:MM:SS:FF format.
 
@@ -19,7 +19,7 @@ def frames_to_timecode(frame: int, fps: int) -> str:
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}:{frames:02d}"
 
 
-def timecode_to_frames(timecode: str, fps: int) -> int:
+def timecode_to_frames(timecode: str, fps: int = 24) -> int:
     """
     Convert a timecode string HH:MM:SS:FF to a frame number.
 

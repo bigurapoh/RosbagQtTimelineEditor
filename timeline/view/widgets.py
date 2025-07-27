@@ -7,10 +7,14 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Slot
 from controller.timeline_controller import TimelineController
 from model.loaders import CsvLoader, JsonLoader  # 必要に応じて他フォーマットも追加
+from model.data import TrackData
+from theme import get_theme
 
 class TimelineWidget(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, theme, parent=None):
         super().__init__(parent)
+
+        self.theme = get_theme(theme)
 
         # --- UI構築 ---
         self.play_button = QPushButton("Play")
@@ -38,7 +42,7 @@ class TimelineWidget(QWidget):
         self.setLayout(layout)
 
         # --- モデル／コントローラの初期化 ---
-        self.controller = TimelineController(graphics_view=self.view)
+        self.controller = TimelineController(graphics_view=self.view, theme=self.theme)
 
         # --- シグナル／スロット接続 (View -> Controller) ---
         self.load_button.clicked.connect(self.on_load_button_clicked)
@@ -50,6 +54,8 @@ class TimelineWidget(QWidget):
         self.controller.data_loaded.connect(self.on_data_loaded)
         self.controller.frame_changed.connect(self.on_frame_changed)
         self.controller.zoom_changed.connect(self.on_zoom_update)
+
+        self._script_tracks = []
 
     @Slot()
     def on_load_button_clicked(self):
@@ -87,6 +93,12 @@ class TimelineWidget(QWidget):
     def on_zoom_update(self, zoom_factor):
         self.view.resetTransform()
         self.view.scale(zoom_factor, 1.0)
+    
+    def add_track(self, track: TrackData):
+        self._script_tracks.append(track)
+
+    def update_layout(self):
+        self.controller.load_tracks(self._script_tracks)
 
 
 class TimelineView(QWidget):
