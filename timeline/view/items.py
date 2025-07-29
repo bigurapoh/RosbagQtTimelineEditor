@@ -3,7 +3,7 @@ from PySide6.QtGui import QPainter, QPen, QBrush, QColor, QFont
 from PySide6.QtCore import Qt, QRectF, QPointF
 
 from utils import frames_to_timecode
-from model.data import ClipData, TrackData
+from model.data import ClipData
 
 # view/items.py (抜粋)
 
@@ -45,9 +45,11 @@ class TimeLabelItem(QGraphicsWidget):
 
 
 class RulerItem(QGraphicsItem):
-    def __init__(self, theme: dict, parent=None):
+    def __init__(self, view_model, parent=None):
         super().__init__(parent)
-        self.theme = theme
+        self.h_zoom = view_model.h_zoom
+        self.theme = view_model.theme
+        self.view_model = view_model
         self.setZValue(10)
 
     def boundingRect(self) -> QRectF:
@@ -59,13 +61,14 @@ class RulerItem(QGraphicsItem):
         # 元コード: major/minor tick 描画と時間コード :contentReference[oaicite:13]{index=13}
         rect = self.boundingRect()
         painter.fillRect(rect, QColor(self.theme["ruler_bg"]))
-        fps = 24
-        view = self.scene().views()[0]
-        scale = self.theme["BASE_PIXELS_PER_FRAME"] * view.h_zoom
+        fps = self.view_model.fps
+        # view = self.scene().views()[0]
+        scale = self.theme["BASE_PIXELS_PER_DECI_SECOND"] * self.h_zoom
         x = 0
         while x < rect.width():
-            frame = x / scale
-            if int(frame) % fps == 0:
+            time = x / scale
+            frame = int(time / 10 * self.view_model.shrink_rate * fps)
+            if int(time) % 10 == 0:
                 painter.setPen(QPen(QColor(self.theme["ruler_tick_major"])))
                 painter.drawLine(x, rect.bottom(), x, rect.bottom() - 15)
                 from utils import frames_to_timecode
@@ -77,10 +80,11 @@ class RulerItem(QGraphicsItem):
 
 
 class PlayheadTriangleItem(QGraphicsItem):
-    def __init__(self, controller, theme: dict, parent=None):
+    def __init__(self, view, theme: dict, view_model, parent=None):
         super().__init__(parent)
-        self.controller = controller      # タイムライン制御用コールバックを受け取る
+        self.view = view      # タイムライン制御用コールバックを受け取る
         self.theme = theme
+        self.view_model = view_model
         self.setFlags(
             QGraphicsItem.ItemIsMovable
             | QGraphicsItem.ItemSendsScenePositionChanges
@@ -107,39 +111,50 @@ class PlayheadTriangleItem(QGraphicsItem):
     def itemChange(self, change, value):
         if change == QGraphicsItem.ItemPositionChange:
             new_pos = value
-            # Y軸固定
             new_pos.setY(0)
+            # view = self.scene().views()[0]
+            new_x = self.view_model._limit_x_current_line_move(new_pos.x()) # _view_model内でend_lineがstart~end_line_limit内に含まれているか判定
+            new_pos.setX(new_x)
             return new_pos
+        # if change == QGraphicsItem.ItemPositionChange:
+        #     new_pos = value
+        #     # Y軸固定
+        #     new_pos.setY(0)
+        #     return new_pos
         return super().itemChange(change, value)
 
     def mousePressEvent(self, event):
-        self.dragging = True
+        self.view.pressed_playhead.emit()
+        # self.dragging = True
         super().mousePressEvent(event)  # 選択状態変更など
     
-    def mouseMoveEvent(self, event):
-        super().mouseMoveEvent(event)
-        self._update_playhead()         # ドラッグに合わせて更新 :contentReference[oaicite:0]{index=0}
+    # def mouseMoveEvent(self, event):
+    #     super().mouseMoveEvent(event)
+        # self._update_playhead()         # ドラッグに合わせて更新 :contentReference[oaicite:0]{index=0}
 
     def mouseReleaseEvent(self, event):
-        self._update_playhead()         # ドラッグ終了後も最終位置で更新 :contentReference[oaicite:1]{index=1}
-        self.dragging = False
+        new_current_frame = self.view_model._pix_to_frame(self.pos().x())
+        self.view.released_playhead.emit(new_current_frame)
+        # self._update_playhead()         # ドラッグ終了後も最終位置で更新 :contentReference[oaicite:1]{index=1}
+        # self.dragging = False
         super().mouseReleaseEvent(event)
 
-    def _update_playhead(self):
-        view = self.scene().views()[0]
-        new_frame = (self.pos().x() - self.theme["LEFT_MARGIN"]) / (
-            self.theme["BASE_PIXELS_PER_FRAME"] * view.h_zoom
-        )
+    # def _update_playhead(self):
+        # view = self.scene().views()[0]
+        # new_frame = (self.pos().x() - self.theme["LEFT_MARGIN"]) / (
+        #     self.theme["BASE_PIXELS_PER_FRAME"] * view.h_zoom
+        # )
         # コントローラに渡して、内部 playhead_frame を更新
-        self.controller.set_playhead_frame(new_frame)
+        # self.controller.set_playhead_frame(new_frame)
         #   :contentReference[oaicite:2]{index=2}
 
 
 class PlayheadLineItem(QGraphicsItem):
-    def __init__(self, controller, theme: dict, parent=None):
+    def __init__(self, view, theme: dict, view_model, parent=None):
         super().__init__(parent)
-        self.controller = controller
+        self.view = view
         self.theme = theme
+        self.view_model = view_model
         self.setFlags(
             QGraphicsItem.ItemIsMovable
             | QGraphicsItem.ItemSendsScenePositionChanges
@@ -161,37 +176,49 @@ class PlayheadLineItem(QGraphicsItem):
     def itemChange(self, change, value):
         if change == QGraphicsItem.ItemPositionChange:
             new_pos = value
-            # Y軸はヘッダー下に固定
-            new_pos.setY(self.theme["TOP_MARGIN"])
+            new_pos.setY(0)
+            # view = self.scene().views()[0]
+            new_x = self.view_model._limit_x_current_line_move(new_pos.x()) # _view_model内でend_lineがstart~end_line_limit内に含まれているか判定
+            new_pos.setX(new_x)
             return new_pos
+        # if change == QGraphicsItem.ItemPositionChange:
+        #     new_pos = value
+        #     # Y軸はヘッダー下に固定
+        #     new_pos.setY(self.theme["TOP_MARGIN"])
+        #     return new_pos
         return super().itemChange(change, value)
 
     def mousePressEvent(self, event):
-        self.dragging = True
+        # self.dragging = True
+        self.view.pressed_playhead.emit()
         super().mousePressEvent(event)
     
-    def mouseMoveEvent(self, event):
-        super().mouseMoveEvent(event)
-        self._update_playhead()         # ドラッグ中にも更新 :contentReference[oaicite:3]{index=3}
+    # def mouseMoveEvent(self, event):
+    #     super().mouseMoveEvent(event)
+        # self._update_playhead()         # ドラッグ中にも更新 :contentReference[oaicite:3]{index=3}
 
     def mouseReleaseEvent(self, event):
-        self._update_playhead()         # ドラッグ終了後に更新 :contentReference[oaicite:4]{index=4}
-        self.dragging = False
+        new_current_frame = self.view_model._pix_to_frame(self.pos().x())
+        self.view.released_playhead.emit(new_current_frame)
+        # self._update_playhead()         # ドラッグ終了後に更新 :contentReference[oaicite:4]{index=4}
+        # self.dragging = False
         super().mouseReleaseEvent(event)
 
-    def _update_playhead(self):
-        view = self.scene().views()[0]
-        new_frame = (self.pos().x() - self.theme["LEFT_MARGIN"]) / (
-            self.theme["BASE_PIXELS_PER_FRAME"] * view.h_zoom
-        )
-        self.controller.set_playhead_frame(new_frame)
+    # def _update_playhead(self):
+    #     view = self.scene().views()[0]
+    #     new_frame = (self.pos().x() - self.theme["LEFT_MARGIN"]) / (
+    #         self.theme["BASE_PIXELS_PER_FRAME"] * view.h_zoom
+    #     )
+    #     self.controller.set_playhead_frame(new_frame)
 
 
 class EndLineItem(QGraphicsItem):
-    def __init__(self, controller, theme: dict, parent=None):
+    def __init__(self, view, theme: dict, view_model, parent=None):
         super().__init__(parent)
-        self.controller = controller
+        self.view = view
+        self.view_model = view_model
         self.theme = theme
+        self.new_x = 0
         self.setFlags(
             QGraphicsItem.ItemIsMovable
             | QGraphicsItem.ItemSendsScenePositionChanges
@@ -214,46 +241,39 @@ class EndLineItem(QGraphicsItem):
         if change == QGraphicsItem.ItemPositionChange:
             new_pos = value
             new_pos.setY(self.theme["TOP_MARGIN"])
-            view = self.scene().views()[0]
-            new_frame = (new_pos.x() - self.theme["LEFT_MARGIN"]) / (
-                self.theme["BASE_PIXELS_PER_FRAME"] * view.h_zoom
-            )
-            min_end = self.controller.minimum_end_frame()
-            if new_frame < min_end:
-                new_frame = min_end
-                new_x = (
-                    self.theme["LEFT_MARGIN"]
-                    + new_frame 
-                    * self.theme["BASE_PIXELS_PER_FRAME"] 
-                    * view.h_zoom
-                )
-                new_pos.setX(new_x)
+            # view = self.scene().views()[0]
+            new_x = self.view_model._limit_x_end_line_move(new_pos.x()) # _view_model内でend_lineがstart~end_line_limit内に含まれているか判定
+            new_pos.setX(new_x)
+            self.new_x = new_x
             return new_pos
         return super().itemChange(change, value)
 
     def mousePressEvent(self, event):
         # 元コード: ドラッグ開始フラグ :contentReference[oaicite:3]{index=3}
-        self.dragging = True
+        self.view.pressed_endline.emit()
+        # self.dragging = True
         super().mousePressEvent(event)
 
-    def mouseMoveEvent(self, event):
-        # 元コード: ドラッグ中に updateEndFrame() 呼び出し :contentReference[oaicite:4]{index=4}
-        super().mouseMoveEvent(event)
-        self.updateEndFrame()
+    # def mouseMoveEvent(self, event):
+    #     # 元コード: ドラッグ中に updateEndFrame() 呼び出し :contentReference[oaicite:4]{index=4}
+    #     super().mouseMoveEvent(event)
+    #     self.updateEndFrame()
 
     def mouseReleaseEvent(self, event):
         # 元コード: ドラッグ終了後に最終 updateEndFrame() & フラグ解除 :contentReference[oaicite:5]{index=5}
-        self.updateEndFrame()
-        self.dragging = False
+        new_end_frame = self.view_model._pix_to_frame(self.new_x)
+        self.view.released_endline.emit(new_end_frame)
+        # self.updateEndFrame()
+        # self.dragging = False
         super().mouseReleaseEvent(event)
 
-    def updateEndFrame(self):
-        # 元コード: シーン位置から endFrame を計算してコントローラに伝達 :contentReference[oaicite:6]{index=6}
-        view = self.scene().views()[0]
-        new_frame = (self.pos().x() - self.theme["LEFT_MARGIN"]) / (
-            self.theme["BASE_PIXELS_PER_FRAME"] * view.h_zoom
-        )
-        self.controller.set_end_frame(new_frame)
+    # def updateEndFrame(self):
+    #     # 元コード: シーン位置から endFrame を計算してコントローラに伝達 :contentReference[oaicite:6]{index=6}
+    #     view = self.scene().views()[0]
+    #     new_frame = (self.pos().x() - self.theme["LEFT_MARGIN"]) / (
+    #         self.theme["BASE_PIXELS_PER_FRAME"] * view.h_zoom
+    #     )
+    #     self.controller.set_end_frame(new_frame)
 
 
 
@@ -287,19 +307,20 @@ class TimeLabelItem(QGraphicsItem):
 
 
 class TrackHeaderItem(QGraphicsItem):
-    def __init__(self, track_data, theme: dict = None, parent=None):
+    def __init__(self, track_data, view_model, parent=None):
         super().__init__(parent)
         self.track_data = track_data
-        self.theme = theme
+        self.theme = view_model.theme
+        self.v_zoom = view_model.v_zoom
         self.setZValue(5)
 
     def boundingRect(self) -> QRectF:
         # 元コード: LEFT_MARGIN × (height × v_zoom) :contentReference[oaicite:17]{index=17}
-        v_zoom = self.scene().views()[0].v_zoom
+        # v_zoom = self.scene().views()[0].v_zoom
         return QRectF(
             0, 0,
             self.theme["LEFT_MARGIN"],
-            self.track_data.height * v_zoom
+            self.track_data.height * self.v_zoom
         )
 
     def paint(self, painter: QPainter, option, widget):
@@ -348,16 +369,18 @@ class TrackLaneItem(QGraphicsItem):
 class ClipItem(QGraphicsItem):
     SNAP_TOLERANCE = 1
 
-    def __init__(self, clip_data: ClipData, track_data, theme: dict, parent=None):
+    def __init__(self, clip_data: ClipData, track_data, view_model, is_moveable:bool, parent=None):
         super().__init__(parent)
         self.clip_data = clip_data
         self.track_data = track_data
-        self.theme = theme
+        self.theme = view_model.theme
+        self.h_zoom = view_model.h_zoom
         self.rect = QRectF()
-        self.setFlags(
-            QGraphicsItem.ItemIsSelectable |
-            QGraphicsItem.ItemIsMovable
-        )
+        if is_moveable:
+            self.setFlags(
+                QGraphicsItem.ItemIsSelectable |
+                QGraphicsItem.ItemIsMovable
+            )
         self._fixed_y = 0
 
     def boundingRect(self) -> QRectF:
@@ -417,7 +440,7 @@ class ClipItem(QGraphicsItem):
         view = self.scene().views()[0]
         original = round(
             (self.pos().x() - self.theme["LEFT_MARGIN"])
-            / (self.theme["BASE_PIXELS_PER_FRAME"] * view.h_zoom)
+            / (self.theme["BASE_PIXELS_PER_FRAME"] * self.h_zoom)
         )
         # 候補リスト構築
         options = [original]
@@ -445,7 +468,7 @@ class ClipItem(QGraphicsItem):
             self.theme["LEFT_MARGIN"]
             + self.clip_data.start_frame
             * self.theme["BASE_PIXELS_PER_FRAME"]
-            * view.h_zoom
+            * self.h_zoom
         )
         self.setPos(new_x, self._fixed_y)
         super().mouseReleaseEvent(event)
