@@ -13,8 +13,7 @@ from theme import get_theme
 
 # import all of your Item classes
 from view.items import (
-    TimeLabelItem, RulerItem,
-    PlayheadTriangleItem, PlayheadLineItem, EndLineItem,
+    TimeLabelItem, RulerItem, PlayheadItem, EndLineItem,
     TrackHeaderItem, TrackLaneItem, ClipItem
 )
 
@@ -170,8 +169,9 @@ class TimelineWidget(QWidget):
         # static items placeholders
         self._timeLabel      = None
         self._ruler          = None
-        self._playTri        = None
-        self._playLine       = None
+        self._playHead = None
+        # self._playTri        = None
+        # self._playLine       = None
         self._endLine        = None
 
     # @Slot()
@@ -298,7 +298,7 @@ class TimelineWidget(QWidget):
                 self.scene.removeItem(it)
             lst.clear()
         # then entirely clear static items too
-        for it in (self._timeLabel, self._ruler, self._playTri, self._playLine, self._endLine):
+        for it in (self._timeLabel, self._ruler, self._playHead, self._endLine):
             if it:
                 self.scene.removeItem(it)
 
@@ -341,12 +341,14 @@ class TimelineWidget(QWidget):
         # playhead
         phx = self._view_model._frame_to_pix(self._view_model.current_frame)
         # phx = self.theme["LEFT_MARGIN"] + self._current_frame*self.theme["BASE_PIXELS_PER_DECI_SECOND"]*self._h_zoom
-        self._playLine  = PlayheadLineItem(self, self._view_model.theme, self._view_model)
-        self._playLine .setPos(phx, self._view_model.theme["TOP_MARGIN"])
-        self.scene.addItem(self._playLine )
-        self._playTri   = PlayheadTriangleItem(self, self._view_model.theme, self._view_model)
-        self._playTri  .setPos(phx, 0)
-        self.scene.addItem(self._playTri  )
+        self._playHead = PlayheadItem(self, self._view_model.theme, self._view_model)
+        self._playHead  .setPos(phx, 0)
+        # self._playLine  = PlayheadLineItem(self, self._view_model.theme, self._view_model)
+        # self._playLine .setPos(phx, self._view_model.theme["TOP_MARGIN"])
+        # self.scene.addItem(self._playLine )
+        # self._playTri   = PlayheadTriangleItem(self, self._view_model.theme, self._view_model)
+        # self._playTri  .setPos(phx, 0)
+        self.scene.addItem(self._playHead)
 
         # 4) dynamic items
         cy = self._view_model.theme["TOP_MARGIN"]
