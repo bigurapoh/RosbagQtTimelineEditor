@@ -317,10 +317,10 @@ class EndLineItem(QGraphicsItem):
     def mouseReleaseEvent(self, event):
         # 元コード: ドラッグ終了後に最終 updateEndFrame() & フラグ解除 :contentReference[oaicite:5]{index=5}
         new_end_frame = self.view_model._pix_to_frame(self.new_x)
+        super().mouseReleaseEvent(event)
         self.view.released_endline.emit(new_end_frame)
         # self.updateEndFrame()
         # self.dragging = False
-        super().mouseReleaseEvent(event)
 
     # def updateEndFrame(self):
     #     # 元コード: シーン位置から endFrame を計算してコントローラに伝達 :contentReference[oaicite:6]{index=6}

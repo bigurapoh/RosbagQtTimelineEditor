@@ -132,6 +132,7 @@ class TimelineController(QObject):
         self.pause()
         self.timeline_model.set_end_line_frame(to_frame)
         self.end_frame_changed.emit()
+        self.go_start_frame()
 
     @Slot(int)
     def release_current_line(self, to_frame):
