@@ -39,19 +39,10 @@ def main():
     tracka1.add_clip(ClipData(title="Music_16", start_frame=0,  duration_frames=30))
     tracka1.add_clip(ClipData(title="Sound_B", start_frame=120,duration_frames=30))
 
-    # # TimelineWidget 側に add_track / update_layout を実装済み
-    # timelineWidget.controller.add_record(trackv2)
-    # timelineWidget.controller.add_record(trackv1)
-    # timelineWidget.controller.add_record(tracka1)
-    # timelineWidget.controller.add_record(tracka2)
-
     # MockData インスタンスの作成
     mock_data = MockData(track_metadatas=[trackv1, trackv2, tracka1, tracka2], fps=24)
 
     timelineWidget.controller.add_record(record_data=mock_data)
-
-    # # このメソッドですべてのアイテムをシーンに再配置します
-    # timelineWidget.update_layout()
 
     main_window.show()
     sys.exit(app.exec())

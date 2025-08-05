@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 
 from PySide6.QtCore import QObject, Signal
 
@@ -52,7 +52,8 @@ class TrackMetaData:
 
 
 
-#!--- 8.MockDataとRosbagDataの追加.
+# TrackMetaDataのリストをpropertyとして持つクラス群の定義
+# bagファイルなど一つのファイルに対応するインスタンス
 class RecordData(ABC):
     """
     metadataとrecordsを持つデータ.
@@ -136,7 +137,6 @@ class MockData(RecordData):
     def now(self, frame):
         pass
 
-#!--- 9.RecordMngModelの実装. どのようなメソッドを実装すべきかをcontrollerとの兼ね合いで考える(modelはviewからも定義されるのでviewもちゃんと確認)
 class RecordMngModel():
     """
     登録された全てのRecordDataを一括で管理するMng.
@@ -165,7 +165,6 @@ class RecordMngModel():
             record_data.now(frame)
         #!--- 11.実際のtimecodeの返却とframeによるtimecodeの返却どちらにも対応できるようにする(future)
 
-#!--- 13.TimlineModelの実装 --- Done
 class TimelineModel(QObject):
     over_end_line = Signal()
 
