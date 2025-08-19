@@ -74,8 +74,16 @@ class RecordData(ABC):
 
 class RosbagData(RecordData):
     def __init__(self, track_metadatas: List[TrackMetaData], track_records, fps:int):
+        """
+        track_metadatas:    List[TrackMetaData] => 特に .name="topic名", .clips[0].start_frame, .clips[0].end_frameが重要(RosbagDataではclipsは長さ1で固定) 
+        track_records:      {"tpc1": (record1, topic_type), "tpc2": (record2, topic_type2), ...}という形式のdictがloaderによって用意される.
+                            また各recordは{frame0: msg0, frame1: msg1, ...}という形式で保存されており、topic_typeは実際の型クラスがそのまま格納されている
+        fps:                track_recordsにおけるframeの計算に用いたfpsを登録
+        """
+        import rospy
+
         self.track_metadatas = track_metadatas
-        self.track_records = track_records # loaderによってframeをkeyにした辞書のリストとして作成される
+        self.track_records = track_records 
         self._fps = fps
         
         # 最大値計算処理
@@ -84,7 +92,12 @@ class RosbagData(RecordData):
             for c in t.clips:
                 self.max_end_frame = max(self.max_end_frame, c.end_frame)
 
-        # ToDo: publisherの用意
+        # {topic名: Publisher}形式の辞書を用意する
+        rospy.init_node("rosbag-palyer", anonymous=False)
+        self.pub_dict = {}
+        for t in track_metadatas:
+            topic_type = self.track_records[t.name][1]
+            self.pub_dict[t.name] = rospy.Publisher(t.name, topic_type, queue_size=1)
     
     @property
     def metadatas(self):
@@ -99,12 +112,14 @@ class RosbagData(RecordData):
         return self._fps
     
     def now(self, frame):
-        # ToDo: recordsからframe_idxによりその値を返す
-        for track_record in self.track_records:
-            now_record = track_record[frame] # frameがkeyとして存在しなければNone, 存在すればvalueが返却される 
-
-        # now_recordが存在すればpublish
-        pass
+        # recordからframe_idxによりその値を返す
+        for t in self.track_metadatas:
+            record_dict = self.track_records[t.name][0]
+            now_msg = record_dict[frame]
+            
+            # now_recordが存在すればpublish
+            if now_msg is not None:
+                self.pub_dict[t.name].publish(now_msg)
 
 class MockData(RecordData):
     def __init__(self, track_metadatas: List[TrackMetaData], fps:int=24):

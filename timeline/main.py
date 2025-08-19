@@ -4,6 +4,7 @@ import sys
 from PySide6.QtWidgets import QApplication, QMainWindow
 from view.widgets import TimelineWidget
 from model.data import TrackMetaData, ClipData, MockData
+from model.loaders import RosbagLoader
 
 def main():
     app = QApplication(sys.argv)
@@ -43,6 +44,14 @@ def main():
     mock_data = MockData(track_metadatas=[trackv1, trackv2, tracka1, tracka2], fps=24)
 
     timelineWidget.controller.add_record(record_data=mock_data)
+
+    # RosBagData インスタンスの作成(なお, add_record内においてLoaderの呼び出しが可能なので、パスを渡すだけでもいい)
+    loader = RosbagLoader()
+    path = "/home/robotics/ws/NavResearch/QtEditorialTimelineWidget/local/data/" + "hoge.bag"
+    rosbag_data = loader.load(path)
+
+    timelineWidget.controller.add_record(record_data=rosbag_data)
+
 
     main_window.show()
     sys.exit(app.exec())
