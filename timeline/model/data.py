@@ -93,7 +93,7 @@ class RosbagData(RecordData):
                 self.max_end_frame = max(self.max_end_frame, c.end_frame)
 
         # {topic名: Publisher}形式の辞書を用意する
-        rospy.init_node("rosbag-palyer", anonymous=False)
+        rospy.init_node("rosbag_palyer", anonymous=False)
         self.pub_dict = {}
         for t in track_metadatas:
             topic_type = self.track_records[t.name][1]
@@ -115,7 +115,7 @@ class RosbagData(RecordData):
         # recordからframe_idxによりその値を返す
         for t in self.track_metadatas:
             record_dict = self.track_records[t.name][0]
-            now_msg = record_dict[frame]
+            now_msg = record_dict.get(frame)
             
             # now_recordが存在すればpublish
             if now_msg is not None:
@@ -205,3 +205,5 @@ class TimelineModel(QObject):
         self.current_frame += 1
         if self.current_frame >= self.end_frame:
             self.over_end_line.emit()
+        
+        return self.current_frame

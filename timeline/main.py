@@ -47,7 +47,7 @@ def main():
 
     # RosBagData インスタンスの作成(なお, add_record内においてLoaderの呼び出しが可能なので、パスを渡すだけでもいい)
     loader = RosbagLoader()
-    path = "/home/robotics/ws/NavResearch/QtEditorialTimelineWidget/local/data/" + "hoge.bag"
+    path = "/opt/data/" + "turtlebot_runtime_2025-08-05-22-11-17.bag"
     rosbag_data = loader.load(path)
 
     timelineWidget.controller.add_record(record_data=rosbag_data)

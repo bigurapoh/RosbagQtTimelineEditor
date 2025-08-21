@@ -100,14 +100,14 @@ class RosbagLoader(DataLoader):
             # start_timeからの経過時間を各msgごとに計算して, frameに変換 :future: 複数rosbagファイル対応できるようにstart_timeを工夫すべき
             for t, msg in v:
                 curr_time = _msg_time_to_sec(t)
-                frame = int((start_time - curr_time) / self.loader_fps) # :check:
+                frame = int((curr_time - start_time) * self.loader_fps) # :check:
                 raw_record[frame] = msg
 
             # start_frame及びend_frameを計算, ClipDataをtitle=""で作成
             local_start_frame = min(raw_record.keys()) # なお、start_time変数はグローバルなminであるのに対して、これはlocal、つまりこのトピック内のみで最小
             local_end_frame = max(raw_record.keys())
             duration_frames = local_end_frame - local_start_frame + 1
-            clip_data = ClipData(title="", start_frame=local_start_frame, duration_frames=duration_frames)
+            clip_data = ClipData(title=topic_name, start_frame=local_start_frame, duration_frames=duration_frames)
             
             # topic_typeの取得
             topic_type = type(v[0][1])
@@ -116,7 +116,7 @@ class RosbagLoader(DataLoader):
             track_records[topic_name] = (raw_record, topic_type)
 
             # TrackMetaDataをname=topic名で作成, add_clip
-            track_metadata = TrackMetaData(name="Video 2", ui_height=60)
+            track_metadata = TrackMetaData(name=topic_name, ui_height=60)
             track_metadata.add_clip(clip_data)
 
             track_metadatas.append(track_metadata)
