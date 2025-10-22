@@ -12,7 +12,7 @@ class DataLoader(ABC):
     データ読み込みの共通インターフェース。
     各フォーマットごとに load(path:str) -> List[TrackData] を実装する。
     """
-    loader_fps:int = 24
+    loader_fps:int = 100
     @abstractmethod
     def load(self, path: str) -> RecordData:
         ...
