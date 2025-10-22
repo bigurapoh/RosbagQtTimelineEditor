@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Dict
 import csv
 import rosbag
-from model.data import TrackMetaData, ClipData, RecordData, MockData, RosbagData
+from model.data import TrackMetaData, ClipData, RecordData, MockData, RosbagData, RosbagWithBlurData
 
 
 class DataLoader(ABC):
@@ -69,7 +69,7 @@ def _msg_time_to_sec(t):
 
 # pathからRecordDataを作成する
 class RosbagLoader(DataLoader):
-    def load(self, path:str) -> RosbagData:
+    def load(self, path:str, with_blur=False) -> RosbagData:
 
         # Bagファイルを読み込み
         bag = rosbag.Bag(path)
@@ -120,5 +120,7 @@ class RosbagLoader(DataLoader):
             track_metadata.add_clip(clip_data)
 
             track_metadatas.append(track_metadata)
-        
-        return RosbagData(track_metadatas, track_records, self.loader_fps)
+        if with_blur:
+            return RosbagWithBlurData(track_metadatas, track_records, self.loader_fps)
+        else:
+            return RosbagData(track_metadatas, track_records, self.loader_fps)

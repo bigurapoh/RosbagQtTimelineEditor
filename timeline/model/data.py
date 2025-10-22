@@ -4,6 +4,12 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import List, Optional
 
+import cv2
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import numpy as np
+
 from PySide6.QtCore import QObject, Signal
 
 @dataclass
@@ -120,6 +126,72 @@ class RosbagData(RecordData):
             # now_recordが存在すればpublish
             if now_msg is not None:
                 self.pub_dict[t.name].publish(now_msg)
+
+
+class RosbagWithBlurData(RosbagData):
+    camera_topic_name = "/camera/color/image_raw"
+    def __init__(self, track_metadatas, track_records, fps):
+        super().__init__(track_metadatas, track_records, fps)
+
+        from cv_bridge import CvBridge
+        bridge = CvBridge()
+        
+        in_camera_topic = False
+        for t in self.track_metadatas:
+            if t.name == self.camera_topic_name:
+                record_dict:dict = self.track_records[t.name][0]
+            
+                # blur_dictの構築
+                self.blur_dict = {}
+                for frame_key, msg in record_dict.items():
+                    img = bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+                    blur = cv2.Laplacian(img, cv2.CV_64F).var()
+                    self.blur_dict[frame_key] = blur
+                in_camera_topic = True
+                break
+        
+        if not in_camera_topic:
+            raise ValueError(f"cameraトピックが含まれていません: {self.camera_topic_name}")
+        self.prepare_static_graph()
+
+    def prepare_static_graph(self):
+        
+        # グラフ描画とキャッシュ
+        self.fig, self.ax = plt.subplots()
+        x_vals = list(self.blur_dict.keys())
+        y_vals = list(self.blur_dict.values())
+
+        self.ax.plot(x_vals, y_vals, linestyle='-')
+        self.ax.grid(True)
+
+        self.fig.canvas.draw()
+        self.img_rgb = np.frombuffer(self.fig.canvas.tostring_rgb(), dtype=np.uint8)
+        self.img_rgb = self.img_rgb.reshape(self.fig.canvas.get_width_height()[::-1] + (3,))
+        self.img_bgr_base = cv2.cvtColor(self.img_rgb, cv2.COLOR_RGB2BGR)
+
+        # Store transformation function: data coords → pixel coords
+        self.trans_data_to_pixels = self.ax.transData.transform
+        self.canvas_width, self.canvas_height = self.fig.canvas.get_width_height()
+
+        plt.close(self.fig)  # グラフ表示は不要なので閉じる
+    
+    def now(self, frame):
+        super().now(frame)
+
+        # ベース画像をコピー
+        img_bgr = self.img_bgr_base.copy()
+
+        # matplotlib の座標変換を使って frame → pixel の x 座標に変換
+        pixel_coord = self.trans_data_to_pixels((frame, 0))  # y値は無視、xだけ使う
+        x_pixel = int(pixel_coord[0])
+
+        # 座標が画像範囲内か確認
+        if 0 <= x_pixel < self.canvas_width:
+            cv2.line(img_bgr, (x_pixel, 0), (x_pixel, self.canvas_height), (0, 0, 255), 1, lineType=cv2.LINE_AA)
+
+        cv2.imshow('Graph', img_bgr)
+
+
 
 class MockData(RecordData):
     def __init__(self, track_metadatas: List[TrackMetaData], fps:int=24):

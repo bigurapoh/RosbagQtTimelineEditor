@@ -60,7 +60,7 @@ def main():
     loader = RosbagLoader()
     args, _ = parser.parse_known_args()
     path = "/opt/data_viz/data/" / args.bag_name
-    rosbag_data = loader.load(path)
+    rosbag_data = loader.load(path, with_blur=True)
 
     timelineWidget.controller.add_record(record_data=rosbag_data)
 
