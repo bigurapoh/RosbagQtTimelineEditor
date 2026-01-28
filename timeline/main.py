@@ -6,7 +6,7 @@ from pathlib import Path
 from PySide6.QtWidgets import QApplication, QMainWindow
 from view.widgets import TimelineWidget
 from model.data import TrackMetaData, ClipData, MockData
-from model.loaders import RosbagLoader
+from model.loaders import RosbagLoader, DistanceDataLoader
 
 def main():
     parser = argparse.ArgumentParser()
@@ -60,9 +60,16 @@ def main():
     loader = RosbagLoader()
     args, _ = parser.parse_known_args()
     path = "/opt/data_viz/data/" / args.bag_name
-    rosbag_data = loader.load(path, with_blur=True)
+    rosbag_data = loader.load(path, with_blur=False)
+
+    # loader = DistanceDataLoader()
+    # path = "/opt/data_viz/data/output.csv"
+    # shared_start_time = rosbag_data.shared_start_time
+    # distance_data = loader.load(path, shared_start_time, goal_idx=None)
+
 
     timelineWidget.controller.add_record(record_data=rosbag_data)
+    # timelineWidget.controller.add_record(record_data=distance_data)
 
 
     main_window.show()

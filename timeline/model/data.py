@@ -72,18 +72,114 @@ class RecordData(ABC):
     def metadatas(self) -> List[TrackMetaData]:...
     @property
     @abstractmethod
+    def shared_start_time(self):...
+    @property
+    @abstractmethod
+    def start_frame(self):...
+    @property
+    @abstractmethod
     def end_frame(self):...
     @property
     @abstractmethod
     def fps(self): ...
 
+def _calc_min_start_frame(track_metadatas:List[TrackMetaData]):
+    start_frames = []
+    for t in track_metadatas:
+        for c in t.clips:
+            start_frames.append(c.start_frame)
 
-class RosbagData(RecordData):
-    def __init__(self, track_metadatas: List[TrackMetaData], track_records, fps:int):
+    return min(start_frames)
+
+def _calc_max_end_frame(track_metadatas:List[TrackMetaData]):
+    # 最大値計算処理
+    max_end_frame = 0
+    for t in track_metadatas:
+        for c in t.clips:
+            max_end_frame = max(max_end_frame, c.end_frame)
+    
+    return max_end_frame
+
+
+# loaderによって事前生成された、時系列で変化するグラフを描画するクラス(時間軸がないグラフの描画を扱う)
+class AnimeGraphData(RecordData):
+    def __init__(self, track_metadatas:List[TrackMetaData], track_records, fps:int, concat_axis=0, start_time=None):
         """
-        track_metadatas:    List[TrackMetaData] => 特に .name="topic名", .clips[0].start_frame, .clips[0].end_frameが重要(RosbagDataではclipsは長さ1で固定) 
-        track_records:      {"tpc1": (record1, topic_type), "tpc2": (record2, topic_type2), ...}という形式のdictがloaderによって用意される.
-                            また各recordは{frame0: msg0, frame1: msg1, ...}という形式で保存されており、topic_typeは実際の型クラスがそのまま格納されている
+        track_metadatas:    TrackMetaDataクラスのリスト.  name属性はカラム名
+        track_records:      各track_nameに対するgraph_dictが保存された辞書型データ. なお各trackは連結されて描画される(基本単独trackのデータを想定しているが、複数存在する場合には連結する)
+        (graph_dict):       frameをkey, その時刻のグラフのcv2形式(numpy形式)画像をvalueとしたdict
+        fps:                track_recordsにおけるframeの計算に用いたfpsを登録
+        concat_axis:        カラム(track)の連結方向を指定する. 0が横、1が縦
+        """
+        self.track_metadatas = track_metadatas
+        self.track_records:dict = track_records
+        self._fps = fps
+        self._start_time = start_time
+
+        if len(self.track_metadatas) > 1:
+            self.concat_axis = concat_axis
+        elif len(self.track_metadatas) == 1:
+            self.concat_axis = None
+        else:
+            raise ValueError("track_metadatas is empty.")
+        
+        self.min_start_frame = _calc_min_start_frame(self.track_metadatas)
+        self.max_end_frame = _calc_max_end_frame(self.track_metadatas)
+
+    def now(self, frame):
+        if self.concat_axis:
+            pass # To Do: concat機能
+        else:
+            if frame in self.track_records["distances"].keys():
+                img_bgr = self.track_records["distances"][frame].copy() # 表示する画像をコピー
+                cv2.imshow('Graph', img_bgr)
+    
+    @property
+    def metadatas(self):
+        return self.track_metadatas
+
+    @property
+    def shared_start_time(self):
+        return self._start_time
+
+    @property
+    def start_frame(self):
+        return self.min_start_frame
+
+    @property
+    def end_frame(self):
+        return self.max_end_frame
+    
+    @property
+    def fps(self):
+        return self._fps
+
+# loaderによって事前生成された横軸が時間のグラフに対して、現在のフレームをを描画するクラス
+class StaticTimeGraphData(RecordData):
+    def __init__(self):
+        """
+        複数のトラックをタブで選択できるようにする
+        """
+        pass
+
+    def now(self, frame):
+        pass
+    
+    @property
+    def metadatas(self):
+        return self.track_metadatas
+
+    @property
+    def end_frame(self):
+        return self.max_end_frame
+
+# rosbagのpublishを行うクラス
+class RosbagData(RecordData):
+    def __init__(self, track_metadatas: List[TrackMetaData], track_records, fps:int, start_time=None):
+        """
+        track_metadatas:    TrackMetaDataクラスのリスト.  name属性はトピック名. (基本各trackにclipは単独で存在するため、len(clips)=1) 
+        track_records:      keyがトピック名(track_name)、valueがrecord_dict及びros_publish用のトピックの型クラスのタプルという形式の辞書型データ.
+        (record_dict):      frameをkey, その時刻のmsgをvalueとしたdict
         fps:                track_recordsにおけるframeの計算に用いたfpsを登録
         """
         import rospy
@@ -91,12 +187,10 @@ class RosbagData(RecordData):
         self.track_metadatas = track_metadatas
         self.track_records = track_records 
         self._fps = fps
+        self._start_time = start_time
         
-        # 最大値計算処理
-        self.max_end_frame = 0
-        for t in track_metadatas:
-            for c in t.clips:
-                self.max_end_frame = max(self.max_end_frame, c.end_frame)
+        self.min_start_frame = _calc_min_start_frame(self.track_metadatas)
+        self.max_end_frame = _calc_max_end_frame(self.track_metadatas)
 
         # {topic名: Publisher}形式の辞書を用意する
         rospy.init_node("rosbag_palyer", anonymous=False)
@@ -110,12 +204,20 @@ class RosbagData(RecordData):
         return self.track_metadatas
 
     @property
+    def start_frame(self):
+        return self.min_start_frame
+
+    @property
     def end_frame(self):
         return self.max_end_frame
     
     @property
     def fps(self):
         return self._fps
+
+    @property
+    def shared_start_time(self):
+        return self._start_time
     
     def now(self, frame):
         # recordからframe_idxによりその値を返す
@@ -130,8 +232,8 @@ class RosbagData(RecordData):
 
 class RosbagWithBlurData(RosbagData):
     camera_topic_name = "/camera/color/image_raw"
-    def __init__(self, track_metadatas, track_records, fps):
-        super().__init__(track_metadatas, track_records, fps)
+    def __init__(self, track_metadatas, track_records, fps, start_time=None):
+        super().__init__(track_metadatas, track_records, fps, start_time)
 
         from cv_bridge import CvBridge
         bridge = CvBridge()
@@ -249,7 +351,10 @@ class RecordMngModel():
 
     def now(self, frame):
         for record_data in self.record_data_list:
-            record_data.now(frame)
+            s = record_data.start_frame
+            e = record_data.end_frame
+            if s <= frame <= e:
+                record_data.now(frame)
         #!--- 11.実際のtimecodeの返却とframeによるtimecodeの返却どちらにも対応できるようにする(future)
 
 class TimelineModel(QObject):
